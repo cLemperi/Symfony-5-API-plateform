@@ -6,6 +6,8 @@ use ApiPlatform\Core\Annotation\ApiResource;
 use App\Repository\PostRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
+use Symfony\Component\Validator\Constraints\Length;
+use Symfony\Component\Validator\Constraints\Valid;
 
 //read:collection pour lire une collection d'article
 //read:item correspond à la lecture d'un seul item
@@ -18,11 +20,18 @@ use Symfony\Component\Serializer\Annotation\Groups;
  */
 #[ApiResource(
     normalizationContext:['groups'=> ['read:collection']],
+    denormalizationContext:['groups'=> ['write:Post']],
+    collectionOperations:[
+        'get',
+        'post' => [
+            'validation_groups'=>[Post::class, 'validationGroups']
+        ]
+    ],
     itemOperations:[
         'get' => [
             'normalization_context' => ['groups'=> ['read:collection', 'read:item', 'read:Post']],
         'put' => [
-            'normalization_context' => ['groups' => ['put']],
+            'denormalization_context' => ['groups' => ['put:Post']],
             ],
         ],
     ],
@@ -40,31 +49,52 @@ class Post
     /**
      * @ORM\Column(type="string", length=255)
      */
-    #[Groups(['read:collection'])]
+    #[
+        Groups(['read:collection','put:Post']),
+        Length(min:5, max:255),
+
+    ]
     private $title;
 
     /**
      * @ORM\Column(type="string", length=255)
      */
-    #[Groups(['read:collection'])]
+    #[
+    Groups(['read:collection','put:Post']),
+    Length(min:5, max:255),
+    ]
     private $slug;
 
     /**
      * @ORM\Column(type="text")
      */
-    #[Groups(['read:item'])]
+    #[Groups(['read:item','put:Post'])]
     private $content;
 
     /**
      * @ORM\Column(type="datetime_immutable", nullable=true)
      */
-    #[Groups(['read:item'])]
+    #[Groups(['read:item','put:Post'])]
     private $uptdatedAt;
 
     /**
-     * @ORM\ManyToOne(targetEntity=Category::class, inversedBy="posts")
+     * @ORM\ManyToOne(targetEntity=Category::class, inversedBy="posts", cascade={"persist"})
      */
+    #[
+        Groups(['read:item','write:Post']),
+        Valid()
+    ]
     private $category;
+
+    public static function validationGroups(self $post){
+        return['create:Post'];
+    }
+
+    public function __construct()
+    {
+        $this->createdAt = new \DateTime();
+        $this->uptdatedAt = new \DateTime();
+    }
 
     public function getId(): ?int
     {
@@ -107,7 +137,7 @@ class Post
         return $this;
     }
 
-    public function getUptdatedAt(): ?\DateTimeImmutable
+    public function getUptdatedAt()
     {
         return $this->uptdatedAt;
     }
